@@ -8,6 +8,10 @@ export type Leg = {
   impliedProbability: number;
   fairProbability: number;
   edge: number;
+  source?: string;
+  commenceTime?: string;
+  startStatus?: 'green' | 'yellow' | 'red' | 'started' | 'unknown';
+  minutesUntilStart?: number;
 };
 
 export type Parlay = {
@@ -42,10 +46,23 @@ export function buildCombinations<T>(items: T[], size: number): T[][] {
   return out;
 }
 
+function subjectKey(leg: Leg): string {
+  const lower = leg.selection.toLowerCase();
+  return lower
+    .replace(/ over .*/, '')
+    .replace(/ under .*/, '')
+    .replace(/ yes$/, '')
+    .replace(/ no$/, '')
+    .replace(/ moneyline$/, '')
+    .trim();
+}
+
 function samePlayerOrMarket(a: Leg, b: Leg): boolean {
-  const aPlayer = a.selection.split(' over ')[0].split(' under ')[0];
-  const bPlayer = b.selection.split(' over ')[0].split(' under ')[0];
-  return aPlayer === bPlayer || (a.event === b.event && a.market === b.market);
+  const aSubject = subjectKey(a);
+  const bSubject = subjectKey(b);
+  if (aSubject && bSubject && aSubject === bSubject) return true;
+  // Avoid multiple legs from the same event and same market; this removes duplicate/correlated outcomes.
+  return a.event === b.event && a.market === b.market;
 }
 
 export function makeParlays(legs: Leg[], size: 3 | 5, max = 20): Parlay[] {

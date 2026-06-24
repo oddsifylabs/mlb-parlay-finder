@@ -1,1 +1,22 @@
-{"scripts":{"dev":"next dev","build":"next build","start":"next start"},"dependencies":{"@types/node":"latest","@types/react":"latest","@types/react-dom":"latest","next":"latest","react":"latest","react-dom":"latest","typescript":"latest"},"devDependencies":{}}
+{
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "usb:dev": "next dev -H 127.0.0.1",
+    "usb:start": "next start -H 127.0.0.1"
+  },
+  "dependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "typescript": "latest",
+    "better-sqlite3": "latest"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "latest"
+  }
+}

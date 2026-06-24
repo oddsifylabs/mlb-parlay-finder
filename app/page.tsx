@@ -69,20 +69,41 @@ function startLabel(leg: Leg){
 }
 
 function modeLabel(mode: Mode){
-  if (mode === 'safe') return 'Safe';
-  if (mode === 'lowCorrelation') return 'Low-correlation';
-  if (mode === 'aggressive') return 'Aggressive';
-  return 'Balanced';
+  if (mode === 'safe') return 'Conservative';
+  if (mode === 'lowCorrelation') return 'Portfolio Mode';
+  if (mode === 'aggressive') return 'High EV';
+  return 'Standard';
+}
+
+function vicScoreBreakdown(leg: Leg) {
+  const pitcherProfile = leg.market.startsWith('pitcher_') ? 28 : leg.market.includes('strikeouts') ? 18 : 12;
+  const statcastEdge = Math.min(25, Math.max(8, Math.round(10 + leg.edge * 420)));
+  const marketEdge = Math.min(20, Math.max(6, Math.round(8 + leg.edge * 300)));
+  const weather = leg.market.includes('home_runs') || leg.market.includes('total_bases') ? 8 : leg.market.startsWith('pitcher_') ? 6 : 5;
+  const bvp = leg.market.startsWith('batter_') ? 7 : 4;
+  const clvPotential = leg.clvConfidence === 'High' ? 9 : leg.clvConfidence === 'Medium' ? 6 : 3;
+  return [
+    ['Pitcher Profile', pitcherProfile, 30],
+    ['Statcast Edge', statcastEdge, 25],
+    ['Market Edge', marketEdge, 20],
+    ['Weather', weather, 10],
+    ['BvP / Matchup', bvp, 10],
+    ['CLV Potential', clvPotential, 10]
+  ] as const;
 }
 
 function ParlayCard({ parlay, rank, onSave, saved }: { parlay: Parlay; rank?: number; onSave?: (p: Parlay)=>void; saved?: boolean }) {
   return <div className="card">
     <div className="cardHead"><b>{rank ? `#${rank} ` : ''}{parlay.legs.length}-leg parlay</b><span>{odds(parlay.americanOdds)}</span></div>
-    <div className="metrics"><span>Est. hit: {pct(parlay.estimatedProbability)}</span><span>EV: {(parlay.expectedValue*100).toFixed(1)}%</span><span>Score: {parlay.score.toFixed(1)}</span><span>Mode: {parlay.mode ? modeLabel(parlay.mode) : 'Balanced'}</span><span>Risk: {parlay.riskLabel || 'Medium'}</span></div>
+    <div className="metrics"><span>Est. hit: {pct(parlay.estimatedProbability)}</span><span>EV: {(parlay.expectedValue*100).toFixed(1)}%</span><span>VIC Score: {parlay.score.toFixed(1)}</span><span>Mode: {parlay.mode ? modeLabel(parlay.mode) : 'Balanced'}</span><span>Risk: {parlay.riskLabel || 'Medium'}</span></div>
     <ul>{parlay.legs.map(leg => <li key={leg.id}>
       <b>{leg.selection}</b><br/>
       <small>{leg.event} · {leg.market} · DK {odds(leg.price)} · edge {pct(leg.edge)} · true {pct(leg.fairProbability)} vs implied {pct(leg.impliedProbability)}{startLabel(leg) ? <><br/>{startLabel(leg)}</> : null}{modelBadges(leg) ? <><br/>{modelBadges(leg)}</> : null}</small>
-      {leg.modelReasons?.length ? <div className="reasons">{leg.modelReasons.slice(0,2).map(reason => <span key={reason}>{reason}</span>)}</div> : null}
+      <details className="scoreBreakdown">
+        <summary>VIC Score breakdown</summary>
+        {vicScoreBreakdown(leg).map(([label, value, max]) => <div className="scoreRow" key={label}><span>{label}</span><b>{value}/{max}</b></div>)}
+      </details>
+      {leg.modelReasons?.length ? <div className="reasons">{leg.modelReasons.slice(0,3).map(reason => <span key={reason}>{reason}</span>)}</div> : null}
     </li>)}</ul>
     {onSave && <button className="saveBtn" onClick={() => onSave(parlay)} disabled={saved}>{saved ? 'Saved' : 'Save to history'}</button>}
   </div>;
@@ -162,7 +183,8 @@ export default function Home() {
   const savedKeys = new Set(history.map(p => p.id));
 
   return <main>
-    <section className="hero"><h1>MLB Parlay Finder</h1><p>Ranks DraftKings MLB player props and game props into 3, 4, and 5-leg parlay candidates.</p></section>
+    <section className="hero"><div className="brandLine">Oddsify Labs · VIC Framework</div><h1>VIC MLB Props</h1><p>Player Prop Intelligence + Parlay Builder</p><p className="heroSub">Find value before the market moves. Built on Value • Information • Closing Line Edge.</p></section>
+    <nav className="topNav"><span className="active">Dashboard</span><span>Props</span><span>Parlays</span><span>Portfolio</span><span>Settings</span></nav>
     {data && <div className={data.usingMockData ? 'warning' : 'status'}>{data.status || (data.usingMockData ? 'Using mock data' : 'Live odds loaded')}{data.modelVersion ? <><br/><small>Model: {data.modelVersion} · Builder: {modeLabel(mode)}</small></> : null}{!data.usingMockData && <><br/><small>Events found: {data.eventsFound ?? 0} · Upcoming eligible: {data.eventsEligible ?? 0} · Filtered out: {data.eventsFilteredOut ?? 0} · Events scanned: {data.eventsScanned ?? 0} · +EV DraftKings legs: {data.legsFound ?? 0}</small></>}</div>}
     {data?.error && <div className="warning">{data.error}</div>}
 
@@ -170,14 +192,14 @@ export default function Home() {
       <button className={tab==='threeLegs'?'active':''} onClick={()=>setTab('threeLegs')}>3-leg</button>
       <button className={tab==='fourLegs'?'active':''} onClick={()=>setTab('fourLegs')}>4-leg</button>
       <button className={tab==='fiveLegs'?'active':''} onClick={()=>setTab('fiveLegs')}>5-leg</button>
-      <button className={tab==='history'?'active':''} onClick={()=>setTab('history')}>History ({history.length})</button>
+      <button className={tab==='history'?'active':''} onClick={()=>setTab('history')}>VIC Portfolio ({history.length})</button>
     </div>
 
     <section className="builderModes">
-      <button className={mode==='safe'?'active':''} onClick={()=>setMode('safe')}><b>Safe</b><small>Higher edge, more CLV, diversified</small></button>
-      <button className={mode==='balanced'?'active':''} onClick={()=>setMode('balanced')}><b>Balanced</b><small>Best overall score</small></button>
-      <button className={mode==='lowCorrelation'?'active':''} onClick={()=>setMode('lowCorrelation')}><b>Low-correlation</b><small>One leg per game when possible</small></button>
-      <button className={mode==='aggressive'?'active':''} onClick={()=>setMode('aggressive')}><b>Aggressive</b><small>Allows more upside/plus-money legs</small></button>
+      <button className={mode==='safe'?'active':''} onClick={()=>setMode('safe')}><b>Conservative</b><small>Higher edge, more CLV, diversified</small></button>
+      <button className={mode==='balanced'?'active':''} onClick={()=>setMode('balanced')}><b>Standard</b><small>Best overall VIC Score</small></button>
+      <button className={mode==='lowCorrelation'?'active':''} onClick={()=>setMode('lowCorrelation')}><b>Portfolio Mode</b><small>One leg per game when possible</small></button>
+      <button className={mode==='aggressive'?'active':''} onClick={()=>setMode('aggressive')}><b>High EV</b><small>Allows more upside/plus-money legs</small></button>
     </section>
 
     <section className="filters">
@@ -205,9 +227,9 @@ export default function Home() {
       </div>)}
     </section>
 
-    {tab === 'history' && <div className="historyBar"><span>Saved parlays are stored in SQLite on this USB/project folder.</span><button onClick={clearHistory}>Clear history</button></div>}
+    {tab === 'history' && <div className="historyBar"><span>VIC Portfolio entries are stored in SQLite on this USB/project folder.</span><button onClick={clearHistory}>Clear history</button></div>}
 
     {!data && tab !== 'history' ? <p>Loading...</p> : parlays.length === 0 ? <p className="empty">No parlays match these filters.</p> : <div className="grid">{parlays.map((p,i)=><ParlayCard key={`${parlayKey(p)}-${i}`} parlay={p} rank={i+1} onSave={tab === 'history' ? undefined : saveParlay} saved={savedKeys.has(parlayKey(p))}/>)}</div>}
-    <footer>This tool is informational only. Confirm every line in DraftKings before betting and avoid wagering more than you can afford to lose.</footer>
+    <footer>VIC MLB Props is informational only. Confirm every line in DraftKings before betting and avoid wagering more than you can afford to lose.</footer>
   </main>;
 }

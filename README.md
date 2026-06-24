@@ -1,112 +1,39 @@
-# MLB Parlay Finder - USB + SQLite Edition
+# VIC MLB Props
 
-Next.js app that pulls live MLB DraftKings odds from The Odds API, builds fair probabilities from consensus no-vig prices across other US books, and ranks 3-leg and 5-leg parlay candidates.
+**Player Prop Intelligence + Parlay Builder**
 
-This edition saves parlay history to SQLite instead of browser `localStorage`, so your saved cards stay with the project folder/USB drive.
+VIC MLB Props is a USB-friendly Next.js app for finding DraftKings MLB player prop value and building 3, 4, and 5-leg parlay candidates. It uses the Oddsify Labs VIC framework: **Value • Information • Closing Line Edge**.
 
-## Quick start on Windows USB
+## What's included
 
-1. Copy this folder to your USB drive.
-2. Create `.env.local` from `.env.example`.
-3. Add your Odds API key:
+- Live DraftKings MLB prop odds via The Odds API
+- 3-leg, 4-leg, and 5-leg parlay tabs
+- Builder modes: Conservative, Standard, Portfolio Mode, High EV
+- Pitcher, hitter, and game market filters
+- Upcoming-games-only filter
+- Oddsify/VIC Score and leg-level score breakdown
+- SQLite-backed VIC Portfolio history
+- USB start scripts
 
-```env
-ODDS_API_KEY=your_api_key_here
-```
+## Run
 
-4. Double-click:
-
-```text
-start-usb-dev.bat
-```
-
-5. Open:
-
-```text
-http://localhost:3000
-```
-
-## Optional portable Node.js
-
-If the PC does not have Node.js installed, download the Windows ZIP version of Node.js and extract it to a folder named `nodejs` inside this project folder.
-
-Expected structure:
-
-```text
-mlb-parlay-finder/
-  nodejs/
-    node.exe
-    npm.cmd
-  app/
-  lib/
-  data/
-  start-usb-dev.bat
-```
-
-The BAT files automatically use `./nodejs` first when it exists.
-
-## SQLite history
-
-Saved parlays are written to:
-
-```text
-data/mlb-parlay-finder.sqlite
-```
-
-You can override this with either:
+1. Add your API key to `.env.local`:
 
 ```env
-SQLITE_DATA_DIR=./data
+ODDS_API_KEY=your_key_here
 ```
 
-or:
+2. Start dev mode:
 
-```env
-SQLITE_DB_PATH=./data/mlb-parlay-finder.sqlite
-```
-
-## Development commands
-
-```bash
+```powershell
 npm install
 npm run dev
 ```
 
-## Production commands
+Or double-click `start-usb-dev.bat` from the USB build.
 
-```bash
-npm run build
-npm run start
-```
+Open `http://localhost:3000`.
 
-## How the live model works
+## Notes
 
-1. Fetch MLB events from `/sports/baseball_mlb/events`.
-2. For every event, fetch `/sports/baseball_mlb/events/{eventId}/odds`.
-3. Request DraftKings plus US consensus books for game markets and MLB player props.
-4. Convert non-DraftKings book prices to no-vig fair probabilities.
-5. Compare DraftKings implied probability to consensus fair probability.
-6. Keep only positive-edge legs.
-7. Build 3-leg and 5-leg parlay cards while filtering obvious duplicate/correlated legs.
-
-## Alternate props
-
-The API route supports alternates with:
-
-```text
-/api/parlays?alternates=1
-```
-
-Leave alternates off at first because they add many correlated duplicate legs.
-
-## Upcoming Games Filter
-
-The app now defaults to `Upcoming games only`. Live odds requests call `/api/parlays?upcomingOnly=1`, which removes games whose `commence_time` has already passed before generating parlay cards.
-
-Optional environment variable:
-
-```env
-GAME_LOCK_BUFFER_MINUTES=0
-```
-
-Set it to `15` if you want the app to hide games starting within the next 15 minutes.
+This tool is informational only. Confirm every line in DraftKings before betting. Never wager more than you can afford to lose.

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { impliedFromAmerican, Leg, makeParlays } from '../../../lib/parlay';
+import { impliedFromAmerican, Leg, makeParlays, ParlayMode } from '../../../lib/parlay';
 
 const CORE_MARKETS = [
   'h2h',
@@ -23,6 +23,12 @@ const CORE_MARKETS = [
   'pitcher_earned_runs',
   'pitcher_outs'
 ];
+
+export const MARKET_GROUPS = {
+  pitcher: ['pitcher_strikeouts','pitcher_outs','pitcher_hits_allowed','pitcher_earned_runs','pitcher_walks','pitcher_record_a_win'],
+  hitter: ['batter_hits','batter_total_bases','batter_hits_runs_rbis','batter_rbis','batter_runs_scored','batter_home_runs','batter_singles','batter_doubles','batter_walks','batter_strikeouts','batter_stolen_bases'],
+  game: ['h2h','spreads','totals']
+};
 
 const ALTERNATE_MARKETS = [
   'batter_total_bases_alternate',
@@ -61,6 +67,59 @@ type PricedOutcome = {
   outcomeKey: string;
   price: number;
 };
+
+const ODDSIFY_MODEL_VERSION = 'Oddsify Props Deep Dive v1';
+
+const MARKET_MODEL: Record<string, { rank: number; category: string; softness: 'Very High' | 'High' | 'Medium' | 'Low'; evCeiling: 'Very High' | 'High' | 'Medium-High' | 'Medium' | 'Low'; weight: number; reasons: string[] }> = {
+  pitcher_strikeouts: { rank: 1, category: 'Pitcher Strikeouts', softness: 'Medium', evCeiling: 'Very High', weight: 1.00, reasons: ['Pitcher-first prop: workload sustainability controls strikeout ceiling', 'Uses consensus price as baseline, then prioritizes K markets with real edge'] },
+  pitcher_strikeouts_alternate: { rank: 1, category: 'Pitcher Strikeouts', softness: 'Medium', evCeiling: 'Very High', weight: 0.90, reasons: ['Alternate K lines have higher variance; require a larger market edge'] },
+  batter_total_bases: { rank: 2, category: 'Hitter Total Bases', softness: 'Medium', evCeiling: 'High', weight: 0.94, reasons: ['Total bases captures extra-base upside and contact quality signal', 'Best used with park/pitcher context when available'] },
+  batter_total_bases_alternate: { rank: 2, category: 'Hitter Total Bases', softness: 'Medium', evCeiling: 'High', weight: 0.84, reasons: ['Alternate total-base lines are correlated and volatile; model discounts them'] },
+  pitcher_outs: { rank: 3, category: 'Pitcher Outs Recorded', softness: 'High', evCeiling: 'High', weight: 1.08, reasons: ['Soft board: books often lag pitch-count, efficiency, and bullpen hook trends', 'Pitcher-first workload market gets a model boost when DK is mispriced'] },
+  pitcher_outs_alternate: { rank: 3, category: 'Pitcher Outs Recorded', softness: 'High', evCeiling: 'High', weight: 0.96, reasons: ['Alternate outs line; still soft, but discounted for line variance'] },
+  batter_hits: { rank: 4, category: 'Hitter Hits', softness: 'Medium', evCeiling: 'Medium-High', weight: 0.92, reasons: ['Contact prop: useful for consistency plays when consensus supports edge'] },
+  batter_hits_alternate: { rank: 4, category: 'Hitter Hits', softness: 'Medium', evCeiling: 'Medium-High', weight: 0.82, reasons: ['Alternate hit lines are harder to cash; model requires stronger edge'] },
+  batter_home_runs: { rank: 5, category: 'Home Run', softness: 'Medium', evCeiling: 'High', weight: 0.78, reasons: ['HR props are high-variance Poisson-style markets; model discounts parlays unless edge is large'] },
+  batter_home_runs_alternate: { rank: 5, category: 'Home Run', softness: 'Medium', evCeiling: 'High', weight: 0.70, reasons: ['Alternate HR prop; extreme variance, heavily discounted'] },
+  batter_hits_runs_rbis: { rank: 6, category: 'Hits + Runs + RBIs', softness: 'High', evCeiling: 'Medium-High', weight: 1.04, reasons: ['Combo stat often priced lazily against lineup role', 'Leadoff/cleanup context matters; consensus edge gets a small boost'] },
+  batter_hits_runs_rbis_alternate: { rank: 6, category: 'Hits + Runs + RBIs', softness: 'High', evCeiling: 'Medium-High', weight: 0.92, reasons: ['Alternate H+R+RBI line; correlated with other hitter props'] },
+  pitcher_earned_runs: { rank: 7, category: 'Pitcher Earned Runs', softness: 'Medium', evCeiling: 'High', weight: 0.96, reasons: ['Regression market: actual ERA vs expected quality matters when supplied'] },
+  pitcher_earned_runs_alternate: { rank: 7, category: 'Pitcher Earned Runs', softness: 'Medium', evCeiling: 'High', weight: 0.86, reasons: ['Alternate earned-runs line discounted for volatility'] },
+  batter_stolen_bases: { rank: 8, category: 'Stolen Bases', softness: 'High', evCeiling: 'Medium', weight: 1.02, reasons: ['Niche prop: books are often generic on attempt/catcher/pitcher timing context'] },
+  batter_stolen_bases_alternate: { rank: 8, category: 'Stolen Bases', softness: 'High', evCeiling: 'Medium', weight: 0.90, reasons: ['Alternate stolen-base line; niche but volatile'] },
+  pitcher_walks: { rank: 9, category: 'Pitcher Walks', softness: 'Very High', evCeiling: 'Medium', weight: 1.10, reasons: ['Very soft command market: public rarely prices BB/9, zone rate, chase rate', 'Model gives walk props priority when the DK edge is real'] },
+  pitcher_walks_alternate: { rank: 9, category: 'Pitcher Walks', softness: 'Very High', evCeiling: 'Medium', weight: 0.98, reasons: ['Alternate walks line; soft market but more volatile'] }
+};
+
+function modelForMarket(marketKey: string) {
+  return MARKET_MODEL[marketKey] || { rank: 99, category: marketKey.replaceAll('_', ' '), softness: 'Low' as const, evCeiling: 'Low' as const, weight: 0.85, reasons: ['Market is not in the Oddsify top-nine prop stack; consensus edge only'] };
+}
+
+function adjustedFairProbability(marketKey: string, consensusFair: number, impliedProbability: number): number {
+  const model = modelForMarket(marketKey);
+  const rawEdge = consensusFair - impliedProbability;
+  if (rawEdge <= 0) return consensusFair;
+  const adjustedEdge = rawEdge * model.weight;
+  return Math.max(0.01, Math.min(0.97, impliedProbability + adjustedEdge));
+}
+
+function clvConfidence(edge: number, marketKey: string, minutesUntilStart?: number): 'High' | 'Medium' | 'Low' {
+  const model = modelForMarket(marketKey);
+  const softBoost = model.softness === 'Very High' || model.softness === 'High';
+  if (minutesUntilStart !== undefined && minutesUntilStart <= 15) return 'Low';
+  if (edge >= 0.035 && softBoost) return 'High';
+  if (edge >= 0.025) return 'High';
+  if (edge >= 0.012) return 'Medium';
+  return 'Low';
+}
+
+function quarterKellyFraction(probability: number, americanPrice: number): number {
+  const decimal = americanPrice > 0 ? 1 + americanPrice / 100 : 1 + 100 / Math.abs(americanPrice);
+  const b = decimal - 1;
+  if (b <= 0) return 0;
+  const fullKelly = (probability * b - (1 - probability)) / b;
+  return Math.max(0, Math.min(0.02, fullKelly * 0.25));
+}
 
 function mockLegs(): Leg[] {
   const names = ['Shohei Ohtani hits Over 1.5','Aaron Judge total bases Over 1.5','Tarik Skubal strikeouts Over 6.5','Yankees moneyline','Dodgers -1.5','Mets/Braves Over 8.5','Juan Soto RBIs Over 0.5','Corbin Burnes strikeouts Over 5.5','Red Sox moneyline','Phillies team total Over 4.5'];
@@ -186,12 +245,15 @@ function eventTiming(commenceTime?: string): { minutesUntilStart?: number; start
   return { minutesUntilStart, startStatus: 'green' };
 }
 
-async function fetchDraftKingsLegs(includeAlternates: boolean, upcomingOnly: boolean): Promise<{ legs: Leg[]; eventsFound: number; eventsScanned: number; eventsEligible: number; eventsFilteredOut: number; marketsRequested: string[] }> {
+async function fetchDraftKingsLegs(includeAlternates: boolean, upcomingOnly: boolean, marketFilter: string[]): Promise<{ legs: Leg[]; eventsFound: number; eventsScanned: number; eventsEligible: number; eventsFilteredOut: number; marketsRequested: string[] }> {
   const key = process.env.ODDS_API_KEY;
   if (!key) return { legs: mockLegs(), eventsFound: 0, eventsScanned: 0, eventsEligible: 0, eventsFilteredOut: 0, marketsRequested: [] };
 
   const base = process.env.ODDS_API_BASE || 'https://api.the-odds-api.com/v4';
-  const marketsRequested = includeAlternates ? [...CORE_MARKETS, ...ALTERNATE_MARKETS] : CORE_MARKETS;
+  const allowedMarkets = new Set([...CORE_MARKETS, ...ALTERNATE_MARKETS]);
+  const requestedFromUi = marketFilter.filter(m => allowedMarkets.has(m));
+  const defaultMarkets = includeAlternates ? [...CORE_MARKETS, ...ALTERNATE_MARKETS] : CORE_MARKETS;
+  const marketsRequested = requestedFromUi.length ? requestedFromUi : defaultMarkets;
   const maxEvents = Number(process.env.MAX_MLB_EVENTS || '30');
   const minEdge = Number(process.env.MIN_EDGE || '0.005');
 
@@ -217,10 +279,15 @@ async function fetchDraftKingsLegs(includeAlternates: boolean, upcomingOnly: boo
         if (typeof outcome.price !== 'number') continue;
         const id = legId(event.id, market.key, outcome);
         const impliedProbability = impliedFromAmerican(outcome.price);
-        const fairProbability = fairByOutcome.get(id);
-        if (fairProbability === undefined) continue;
+        const consensusFairProbability = fairByOutcome.get(id);
+        if (consensusFairProbability === undefined) continue;
+        const fairProbability = adjustedFairProbability(market.key, consensusFairProbability, impliedProbability);
         const edge = fairProbability - impliedProbability;
         if (edge < minEdge) continue;
+        const timing = eventTiming(event.commence_time);
+        const model = modelForMarket(market.key);
+        const kellyFraction = quarterKellyFraction(fairProbability, outcome.price);
+        const clv = clvConfidence(edge, market.key, timing.minutesUntilStart);
         allLegs.push({
           id,
           event: `${event.away_team} @ ${event.home_team}`,
@@ -231,9 +298,17 @@ async function fetchDraftKingsLegs(includeAlternates: boolean, upcomingOnly: boo
           impliedProbability,
           fairProbability,
           edge,
-          source: 'live-consensus',
+          source: 'live-consensus-plus-oddsify-model',
+          modelVersion: ODDSIFY_MODEL_VERSION,
+          modelCategory: model.category,
+          marketSoftness: model.softness,
+          evCeiling: model.evCeiling,
+          clvConfidence: clv,
+          kellyFraction,
+          unitRecommendation: Math.round(kellyFraction * 10000) / 100,
+          modelReasons: model.reasons,
           commenceTime: event.commence_time,
-          ...eventTiming(event.commence_time)
+          ...timing
         });
       }
     }
@@ -247,12 +322,16 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const includeAlternates = searchParams.get('alternates') === '1';
     const upcomingOnly = searchParams.get('upcomingOnly') !== '0';
-    const result = await fetchDraftKingsLegs(includeAlternates, upcomingOnly);
+    const mode = ((searchParams.get('mode') || 'balanced') as ParlayMode);
+    const marketsParam = searchParams.get('markets') || '';
+    const marketFilter = marketsParam.split(',').map(m => m.trim()).filter(Boolean);
+    const result = await fetchDraftKingsLegs(includeAlternates, upcomingOnly, marketFilter);
     const filtered = uniqueLegs(result.legs).sort((a, b) => b.edge - a.edge).slice(0, 80);
     return NextResponse.json({
       generatedAt: new Date().toISOString(),
       usingMockData: !process.env.ODDS_API_KEY,
-      status: process.env.ODDS_API_KEY ? 'Live DraftKings odds loaded with consensus fair-price model' : 'Using mock data because ODDS_API_KEY is missing',
+      status: process.env.ODDS_API_KEY ? 'Live DraftKings odds loaded with Oddsify Props Deep Dive model' : 'Using mock data because ODDS_API_KEY is missing',
+      modelVersion: ODDSIFY_MODEL_VERSION,
       eventsFound: result.eventsFound,
       eventsScanned: result.eventsScanned,
       eventsEligible: result.eventsEligible,
@@ -260,8 +339,10 @@ export async function GET(request: Request) {
       upcomingOnly,
       legsFound: filtered.length,
       marketsRequested: result.marketsRequested,
-      threeLegs: uniqueParlays(makeParlays(filtered, 3, 30)),
-      fiveLegs: uniqueParlays(makeParlays(filtered, 5, 30))
+      mode,
+      threeLegs: uniqueParlays(makeParlays(filtered, 3, 40, mode)),
+      fourLegs: uniqueParlays(makeParlays(filtered, 4, 40, mode)),
+      fiveLegs: uniqueParlays(makeParlays(filtered, 5, 40, mode))
     });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Unknown error' }, { status: 500 });

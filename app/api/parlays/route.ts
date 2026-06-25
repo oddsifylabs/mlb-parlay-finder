@@ -271,10 +271,11 @@ async function fetchHardRockBetLegs(includeAlternates: boolean, upcomingOnly: bo
     const url = `${base}/sports/baseball_mlb/events/${event.id}/odds?apiKey=${key}&regions=us&markets=${marketsRequested.join(',')}&oddsFormat=american`;
     const data = await fetchJson<OddsEvent>(url);
     const fairByOutcome = consensusFairProbabilities(data);
-    const dk = data.bookmakers?.find(b => b.key === 'draftkings');
-    if (!dk) continue;
+    // Hard Rock Bet only — no fallback
+    const targetBookmaker = data.bookmakers?.find(b => b.key === 'hardrockbet');
+    if (!targetBookmaker) continue;
 
-    for (const market of dk.markets || []) {
+    for (const market of targetBookmaker.markets || []) {
       for (const outcome of market.outcomes || []) {
         if (typeof outcome.price !== 'number') continue;
         const id = legId(event.id, market.key, outcome);

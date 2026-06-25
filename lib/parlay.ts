@@ -1,4 +1,29 @@
+import type { Signal } from './signals';
+
 export type ParlayMode = 'safe' | 'balanced' | 'lowCorrelation' | 'aggressive';
+
+export type WeatherCondition = {
+  temperature: number;      // Fahrenheit
+  windSpeed: number;        // MPH
+  windDirection: 'in' | 'out' | 'left' | 'right' | 'none';
+  precipitation: number;    // Percentage
+  condition: 'clear' | 'cloudy' | 'rain' | 'snow' | 'storm';
+};
+
+export type LineupStatus = 'confirmed' | 'projected' | 'unknown';
+
+export type TicketMoneySplit = {
+  ticketPercentage: number;   // Public ticket %
+  moneyPercentage: number;    // Sharp money %
+  isSplitAction: boolean;     // true when divergence > 10%
+};
+
+export type CLVData = {
+  openingLine?: number;       // Opening odds
+  currentLine?: number;       // Current odds
+  closingLine?: number;       // Closing odds (post-game)
+  clv?: number;               // (closing - opening) / opening
+};
 
 export type Leg = {
   id: string;
@@ -22,6 +47,15 @@ export type Leg = {
   commenceTime?: string;
   startStatus?: 'green' | 'yellow' | 'red' | 'started' | 'unknown';
   minutesUntilStart?: number;
+  
+  // Turtle Doctrine additions
+  signals?: Signal[];                    // Detected VIC signals
+  signalScore?: number;                  // Combined signal strength
+  ticketMoneySplit?: TicketMoneySplit;   // Public vs sharp split
+  clvData?: CLVData;                     // Line tracking
+  weather?: WeatherCondition;            // Game weather
+  lineupStatus?: LineupStatus;           // Confirmed or projected
+  previousEdge?: number;                 // For late sharp detection
 };
 
 export type Parlay = {

@@ -271,8 +271,9 @@ async function fetchHardRockBetLegs(includeAlternates: boolean, upcomingOnly: bo
     const url = `${base}/sports/baseball_mlb/events/${event.id}/odds?apiKey=${key}&regions=us&markets=${marketsRequested.join(',')}&oddsFormat=american`;
     const data = await fetchJson<OddsEvent>(url);
     const fairByOutcome = consensusFairProbabilities(data);
-    // Hard Rock Bet only — no fallback
-    const targetBookmaker = data.bookmakers?.find(b => b.key === 'hardrockbet');
+    // Hard Rock Bet — The Odds API key is 'hardrockbet_az' (Arizona license)
+    // See: https://the-odds-api.com/sports-odds-data/bookmaker-apis.html#us-bookmakers
+    const targetBookmaker = data.bookmakers?.find(b => b.key === 'hardrockbet_az');
     if (!targetBookmaker) continue;
 
     for (const market of targetBookmaker.markets || []) {

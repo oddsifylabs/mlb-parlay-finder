@@ -206,9 +206,20 @@ function ParlayCard({ parlay, rank, onSave, saved }: { parlay: Parlay; rank?: nu
 }
 
 function CLVDashboard({ summary, history }: { summary: CLVSummary; history: Array<{ id: string; savedAt: string; event: string; selection: string; openingLine: number; closingLine: number; clv: number; result?: 'win' | 'loss' | 'push' }> }) {
+  async function exportData(format: 'txt' | 'md' | 'pdf') {
+    window.open(`/api/export?type=clv&format=${format}`, '_blank');
+  }
+  
   return (
     <div className="clvDashboard">
-      <h2>CLV Tracker — Chapter 7</h2>
+      <div className="toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <h2>CLV Tracker — Chapter 7</h2>
+        <div className="exportButtons" style={{ display: 'flex', gap: '0.5rem' }}>
+          <button onClick={() => exportData('txt')}>TXT</button>
+          <button onClick={() => exportData('md')}>MD</button>
+          <button onClick={() => exportData('pdf')}>PDF</button>
+        </div>
+      </div>
       <p className="clvIntro">"The CLV tab is the most important graph in VIC. Not the P&L graph. The CLV graph. Because P&L is noisy."</p>
       
       <div className="clvMetrics">
@@ -268,9 +279,20 @@ function CLVDashboard({ summary, history }: { summary: CLVSummary; history: Arra
 }
 
 function BankrollDashboard({ summary, state }: { summary: BankrollSummary; state: any }) {
+  async function exportData(format: 'txt' | 'md' | 'pdf') {
+    window.open(`/api/export?type=bankroll&format=${format}`, '_blank');
+  }
+  
   return (
     <div className="bankrollDashboard">
-      <h2>Bankroll Tracker — Chapter 10</h2>
+      <div className="toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <h2>Bankroll Tracker — Chapter 10</h2>
+        <div className="exportButtons" style={{ display: 'flex', gap: '0.5rem' }}>
+          <button onClick={() => exportData('txt')}>TXT</button>
+          <button onClick={() => exportData('md')}>MD</button>
+          <button onClick={() => exportData('pdf')}>PDF</button>
+        </div>
+      </div>
       <p className="bankrollIntro">"The Turtle Position-Sizing System: Bankroll tiers, drawdown adjustments, quarter-Kelly staking."</p>
       
       <div className="bankrollCards">
@@ -508,7 +530,15 @@ export default function Home() {
           </div>)}
         </section>
 
-        {tab === 'history' && <div className="historyBar"><span>VIC Portfolio entries are stored in SQLite on this USB/project folder.</span><button onClick={clearHistory}>Clear history</button></div>}
+        {tab === 'history' && <div className="historyBar">
+          <span>VIC Portfolio entries are stored in SQLite on this USB/project folder.</span>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button onClick={() => window.open('/api/export?type=portfolio&format=txt', '_blank')}>Export TXT</button>
+            <button onClick={() => window.open('/api/export?type=portfolio&format=md', '_blank')}>Export MD</button>
+            <button onClick={() => window.open('/api/export?type=portfolio&format=pdf', '_blank')}>Export PDF</button>
+            <button onClick={clearHistory}>Clear history</button>
+          </div>
+        </div>}
 
         {!data && tab !== 'history' ? <p>Loading...</p> : parlays.length === 0 ? <p className="empty">No parlays match these filters.</p> : <div className="grid">{parlays.map((p: Parlay, i: number) => <ParlayCard key={`${parlayKey(p)}-${i}`} parlay={p} rank={i+1} onSave={tab === 'history' ? undefined : saveParlay} saved={savedKeys.has(parlayKey(p))}/>)}</div>}
       </>

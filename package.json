@@ -10,14 +10,16 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "better-sqlite3": "latest",
     "next": "latest",
+    "pdfkit": "^0.19.1",
     "react": "latest",
     "react-dom": "latest",
-    "typescript": "latest",
-    "better-sqlite3": "latest"
+    "typescript": "latest"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "latest"
+    "@types/better-sqlite3": "latest",
+    "@types/pdfkit": "^0.17.6"
   },
   "name": "vic-mlb-props",
   "description": "Player Prop Intelligence + Parlay Builder powered by the Oddsify Labs VIC Framework."

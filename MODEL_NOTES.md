@@ -4,7 +4,7 @@ This build incorporates the uploaded `Oddsify Labs - MLB Player Props Deep Dive`
 
 ## What is active now
 
-The app still uses DraftKings odds and a non-DraftKings no-vig consensus fair probability as the live baseline. On top of that, it now applies the Oddsify prop-priority model:
+The app still uses Hard Rock Bet odds and a non-Hard Rock Bet no-vig consensus fair probability as the live baseline. On top of that, it now applies the Oddsify prop-priority model:
 
 1. Pitcher Strikeouts
 2. Batter Total Bases

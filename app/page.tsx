@@ -481,7 +481,7 @@ export default function Home() {
     {data && <div className={data.usingMockData ? 'warning' : 'status'}>
       {data.status || (data.usingMockData ? 'Using mock data' : 'Live odds loaded')}
       {data.modelVersion ? <><br/><small>Model: {data.modelVersion} · Builder: {modeLabel(mode)}</small></> : null}
-      {!data.usingMockData && <><br/><small>Events found: {data.eventsFound ?? 0} · Upcoming eligible: {data.eventsEligible ?? 0} · Filtered out: {data.eventsFilteredOut ?? 0} · Events scanned: {data.eventsScanned ?? 0} · +EV DraftKings legs: {data.legsFound ?? 0}</small></>}
+      {!data.usingMockData && <><br/><small>Events found: {data.eventsFound ?? 0} · Upcoming eligible: {data.eventsEligible ?? 0} · Filtered out: {data.eventsFilteredOut ?? 0} · Events scanned: {data.eventsScanned ?? 0} · +EV Hard Rock Bet legs: {data.legsFound ?? 0}</small></>}
     </div>}
     {data?.error && <div className="warning">{data.error}</div>}
     
@@ -544,6 +544,6 @@ export default function Home() {
       </>
     )}
     
-    <footer>VIC MLB Props is informational only. Confirm every line in DraftKings before betting and avoid wagering more than you can afford to lose.</footer>
+    <footer>VIC MLB Props is informational only. Confirm every line in Hard Rock Bet before betting and avoid wagering more than you can afford to lose.</footer>
   </main>;
 }

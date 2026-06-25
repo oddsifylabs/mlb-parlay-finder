@@ -208,7 +208,7 @@ function consensusFairProbabilities(event: OddsEvent): Map<string, number> {
     const impliedSum = rows.reduce((sum, row) => sum + impliedFromAmerican(row.price), 0);
     if (!Number.isFinite(impliedSum) || impliedSum <= 0) continue;
     for (const row of rows) {
-      // Prefer consensus away from DraftKings. If DK is the only available book for a prop,
+      // Prefer consensus away from Hard Rock Bet. If HRB is the only available book for a prop,
       // we skip it instead of pretending there is an edge.
       if (row.bookmakerKey === 'draftkings') continue;
       const noVig = impliedFromAmerican(row.price) / impliedSum;
@@ -245,7 +245,7 @@ function eventTiming(commenceTime?: string): { minutesUntilStart?: number; start
   return { minutesUntilStart, startStatus: 'green' };
 }
 
-async function fetchDraftKingsLegs(includeAlternates: boolean, upcomingOnly: boolean, marketFilter: string[]): Promise<{ legs: Leg[]; eventsFound: number; eventsScanned: number; eventsEligible: number; eventsFilteredOut: number; marketsRequested: string[] }> {
+async function fetchHardRockBetLegs(includeAlternates: boolean, upcomingOnly: boolean, marketFilter: string[]): Promise<{ legs: Leg[]; eventsFound: number; eventsScanned: number; eventsEligible: number; eventsFilteredOut: number; marketsRequested: string[] }> {
   const key = process.env.ODDS_API_KEY;
   if (!key) return { legs: mockLegs(), eventsFound: 0, eventsScanned: 0, eventsEligible: 0, eventsFilteredOut: 0, marketsRequested: [] };
 
@@ -325,12 +325,12 @@ export async function GET(request: Request) {
     const mode = ((searchParams.get('mode') || 'balanced') as ParlayMode);
     const marketsParam = searchParams.get('markets') || '';
     const marketFilter = marketsParam.split(',').map(m => m.trim()).filter(Boolean);
-    const result = await fetchDraftKingsLegs(includeAlternates, upcomingOnly, marketFilter);
+    const result = await fetchHardRockBetLegs(includeAlternates, upcomingOnly, marketFilter);
     const filtered = uniqueLegs(result.legs).sort((a, b) => b.edge - a.edge).slice(0, 80);
     return NextResponse.json({
       generatedAt: new Date().toISOString(),
       usingMockData: !process.env.ODDS_API_KEY,
-      status: process.env.ODDS_API_KEY ? 'Live DraftKings odds loaded with Oddsify Props Deep Dive model' : 'Using mock data because ODDS_API_KEY is missing',
+      status: process.env.ODDS_API_KEY ? 'Live Hard Rock Bet odds loaded with Oddsify Props Deep Dive model' : 'Using mock data because ODDS_API_KEY is missing',
       modelVersion: ODDSIFY_MODEL_VERSION,
       eventsFound: result.eventsFound,
       eventsScanned: result.eventsScanned,

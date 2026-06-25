@@ -22,4 +22,4 @@ This build adds the requested parlay-builder and prop-filter upgrades.
 
 ## Notes
 
-The app still uses DraftKings as the target sportsbook and consensus no-vig pricing as the fair-probability baseline. All plays should be confirmed in DraftKings before betting.
+The app still uses Hard Rock Bet as the target sportsbook and consensus no-vig pricing as the fair-probability baseline. All plays should be confirmed in Hard Rock Bet before betting.

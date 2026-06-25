@@ -63,7 +63,7 @@ See `WORKFLOW_AUTOMATION.md` for setup instructions.
 
 ## 📦 What's Included
 
-- Live DraftKings MLB prop odds via The Odds API
+- Live Hard Rock Bet MLB prop odds via The Odds API
 - **Six VIC signal detection** with historical CLV data
 - 3-leg, 4-leg, and 5-leg parlay tabs
 - Builder modes: Conservative, Standard, Portfolio Mode, High EV
@@ -206,7 +206,7 @@ See `WORKFLOW_AUTOMATION.md` for cron setup. Example:
 
 ## 📝 Notes
 
-- This tool is **informational only**. Confirm every line in DraftKings before betting.
+- This tool is **informational only**. Confirm every line in Hard Rock Bet before betting.
 - Never wager more than you can afford to lose.
 - The VIC Framework is a **systematic approach** — follow the signals, not narratives.
 - CLV is the primary success metric, not P&L (Chapter 7).

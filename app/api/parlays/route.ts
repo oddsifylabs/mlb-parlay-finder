@@ -71,6 +71,9 @@ type PricedOutcome = {
 const ODDSIFY_MODEL_VERSION = 'Oddsify Props Deep Dive v1';
 
 const MARKET_MODEL: Record<string, { rank: number; category: string; softness: 'Very High' | 'High' | 'Medium' | 'Low'; evCeiling: 'Very High' | 'High' | 'Medium-High' | 'Medium' | 'Low'; weight: number; reasons: string[] }> = {
+  h2h: { rank: 10, category: 'Moneyline', softness: 'Low', evCeiling: 'Medium', weight: 0.80, reasons: ['Efficient market; requires significant edge'] },
+  spreads: { rank: 11, category: 'Run Line', softness: 'Low', evCeiling: 'Medium', weight: 0.78, reasons: ['Efficient market; limited softness'] },
+  totals: { rank: 12, category: 'Game Totals', softness: 'Low', evCeiling: 'Medium', weight: 0.82, reasons: ['Efficient market; team context matters'] },
   pitcher_strikeouts: { rank: 1, category: 'Pitcher Strikeouts', softness: 'Medium', evCeiling: 'Very High', weight: 1.00, reasons: ['Pitcher-first prop: workload sustainability controls strikeout ceiling', 'Uses consensus price as baseline, then prioritizes K markets with real edge'] },
   pitcher_strikeouts_alternate: { rank: 1, category: 'Pitcher Strikeouts', softness: 'Medium', evCeiling: 'Very High', weight: 0.90, reasons: ['Alternate K lines have higher variance; require a larger market edge'] },
   batter_total_bases: { rank: 2, category: 'Hitter Total Bases', softness: 'Medium', evCeiling: 'High', weight: 0.94, reasons: ['Total bases captures extra-base upside and contact quality signal', 'Best used with park/pitcher context when available'] },
@@ -180,50 +183,48 @@ function uniqueParlays<T extends { legs: Leg[] }>(parlays: T[]): T[] {
 }
 
 function consensusFairProbabilities(event: OddsEvent): Map<string, number> {
-  const byBookAndGroup = new Map<string, PricedOutcome[]>();
-
+  const fair = new Map<string, number>();
+  
+  // Group outcomes by market and side across all bookmakers
+  const byGroup = new Map<string, { bookmakerKey: string; price: number }[]>();
+  
   for (const book of event.bookmakers || []) {
     for (const market of book.markets || []) {
       for (const outcome of market.outcomes || []) {
         if (typeof outcome.price !== 'number') continue;
         const g = groupKey(event.id, market.key, outcome);
-        const bookGroupKey = `${book.key}|${g}`;
-        const rows = byBookAndGroup.get(bookGroupKey) || [];
-        rows.push({
-          bookmakerKey: book.key,
-          marketKey: market.key,
-          groupKey: g,
-          outcomeKey: sideKey(outcome),
-          price: outcome.price
-        });
-        byBookAndGroup.set(bookGroupKey, rows);
+        const key = `${g}|${sideKey(outcome)}`;
+        const rows = byGroup.get(key) || [];
+        rows.push({ bookmakerKey: book.key, price: outcome.price });
+        byGroup.set(key, rows);
       }
     }
   }
-
-  const fairSamples = new Map<string, number[]>();
-
-  for (const rows of byBookAndGroup.values()) {
-    if (rows.length < 2) continue;
-    const impliedSum = rows.reduce((sum, row) => sum + impliedFromAmerican(row.price), 0);
-    if (!Number.isFinite(impliedSum) || impliedSum <= 0) continue;
-    for (const row of rows) {
-      // Prefer consensus away from Hard Rock Bet. If HRB is the only available book for a prop,
-      // we skip it instead of pretending there is an edge.
-      if (row.bookmakerKey === 'draftkings') continue;
-      const noVig = impliedFromAmerican(row.price) / impliedSum;
-      const key = `${row.groupKey}|${row.outcomeKey}`;
-      const samples = fairSamples.get(key) || [];
-      samples.push(noVig);
-      fairSamples.set(key, samples);
+  
+  // For each outcome, calculate fair probability
+  // If multiple books: use consensus (average of no-vig probs)
+  // If single book: use implied probability directly (no edge possible from single source)
+  for (const [key, rows] of byGroup.entries()) {
+    if (rows.length === 0) continue;
+    
+    if (rows.length === 1) {
+      // Single bookmaker: use implied probability as fair (no edge)
+      const implied = impliedFromAmerican(rows[0].price);
+      fair.set(key, implied);
+    } else {
+      // Multiple bookmakers: calculate consensus fair probability
+      const impliedSum = rows.reduce((sum, row) => sum + impliedFromAmerican(row.price), 0);
+      if (!Number.isFinite(impliedSum) || impliedSum <= 0) continue;
+      
+      for (const row of rows) {
+        const noVig = impliedFromAmerican(row.price) / impliedSum;
+        const existing = fair.get(key) || 0;
+        const count = fair.has(key) ? 1 : 0;
+        fair.set(key, (existing * count + noVig) / (count + 1));
+      }
     }
   }
-
-  const fair = new Map<string, number>();
-  for (const [key, samples] of fairSamples.entries()) {
-    if (samples.length === 0) continue;
-    fair.set(key, samples.reduce((a, b) => a + b, 0) / samples.length);
-  }
+  
   return fair;
 }
 
@@ -255,75 +256,151 @@ async function fetchHardRockBetLegs(includeAlternates: boolean, upcomingOnly: bo
   const defaultMarkets = includeAlternates ? [...CORE_MARKETS, ...ALTERNATE_MARKETS] : CORE_MARKETS;
   const marketsRequested = requestedFromUi.length ? requestedFromUi : defaultMarkets;
   const maxEvents = Number(process.env.MAX_MLB_EVENTS || '30');
-  const minEdge = Number(process.env.MIN_EDGE || '0.00'); // Lowered from 0.005 to show more props
+  const minEdge = Number(process.env.MIN_EDGE || '0.00');
+  const maxPropEvents = Number(process.env.MAX_PROP_EVENTS || '5');
 
-  const eventsUrl = `${base}/sports/baseball_mlb/events?apiKey=${key}`;
-  const events = await fetchJson<OddsEvent[]>(eventsUrl);
   const lockBufferMinutes = Number(process.env.GAME_LOCK_BUFFER_MINUTES || '0');
   const cutoff = Date.now() + lockBufferMinutes * 60 * 1000;
-  const eligibleEvents = upcomingOnly
-    ? events.filter(event => event.commence_time && new Date(event.commence_time).getTime() > cutoff)
-    : events;
-  const selectedEvents = eligibleEvents.slice(0, maxEvents);
+
+  // Separate game markets from player props
+  const gameMarkets = marketsRequested.filter(m => ['h2h', 'spreads', 'totals'].includes(m));
+  const playerPropMarkets = marketsRequested.filter(m => !['h2h', 'spreads', 'totals'].includes(m));
+
   const allLegs: Leg[] = [];
+  let eventsFound = 0;
+  let eventsScanned = 0;
+  let eventsEligible = 0;
+  let eventsFilteredOut = 0;
 
-  for (const event of selectedEvents) {
-    const url = `${base}/sports/baseball_mlb/events/${event.id}/odds?apiKey=${key}&regions=us&markets=${marketsRequested.join(',')}&oddsFormat=american`;
-    const data = await fetchJson<OddsEvent>(url);
-    const fairByOutcome = consensusFairProbabilities(data);
+  // Fetch game markets (h2h, spreads, totals) for all events in one call
+  if (gameMarkets.length > 0) {
+    const eventsUrl = `${base}/sports/baseball_mlb/odds?apiKey=${key}&regions=us&markets=${gameMarkets.join(',')}&oddsFormat=american`;
+    const events = await fetchJson<OddsEvent[]>(eventsUrl);
+    eventsFound = events.length;
     
-    // FanDuel — primary bookmaker for MLB odds
-    // Fallback to DraftKings or BetMGM if FanDuel unavailable for a specific market
-    const targetBookmaker = data.bookmakers?.find(b => 
-      b.key === 'fanduel' || b.key === 'draftkings' || b.key === 'betmgm'
-    );
-    if (!targetBookmaker) {
-      console.log(`No odds for event ${event.id}. Available:`, data.bookmakers?.map(b => b.key).join(', ') || 'none');
-      continue;
-    }
+    const lockBufferMinutes = Number(process.env.GAME_LOCK_BUFFER_MINUTES || '0');
+    const cutoff = Date.now() + lockBufferMinutes * 60 * 1000;
+    const eligibleEvents = upcomingOnly
+      ? events.filter(event => event.commence_time && new Date(event.commence_time).getTime() > cutoff)
+      : events;
+    eventsEligible = eligibleEvents.length;
+    eventsFilteredOut = events.length - eligibleEvents.length;
+    const selectedEvents = eligibleEvents.slice(0, maxEvents);
+    eventsScanned = selectedEvents.length;
 
-    for (const market of targetBookmaker.markets || []) {
-      for (const outcome of market.outcomes || []) {
-        if (typeof outcome.price !== 'number') continue;
-        const id = legId(event.id, market.key, outcome);
-        const impliedProbability = impliedFromAmerican(outcome.price);
-        const consensusFairProbability = fairByOutcome.get(id);
-        if (consensusFairProbability === undefined) continue;
-        const fairProbability = adjustedFairProbability(market.key, consensusFairProbability, impliedProbability);
-        const edge = fairProbability - impliedProbability;
-        if (edge < minEdge) continue;
-        const timing = eventTiming(event.commence_time);
-        const model = modelForMarket(market.key);
-        const kellyFraction = quarterKellyFraction(fairProbability, outcome.price);
-        const clv = clvConfidence(edge, market.key, timing.minutesUntilStart);
-        allLegs.push({
-          id,
-          event: `${event.away_team} @ ${event.home_team}`,
-          market: market.key,
-          selection: selectionLabel(market.key, outcome),
-          point: outcome.point,
-          price: outcome.price,
-          impliedProbability,
-          fairProbability,
-          edge,
-          source: 'live-consensus-plus-oddsify-model',
-          bookmakerKey: targetBookmaker.key,
-          modelVersion: ODDSIFY_MODEL_VERSION,
-          modelCategory: model.category,
-          marketSoftness: model.softness,
-          evCeiling: model.evCeiling,
-          clvConfidence: clv,
-          kellyFraction,
-          unitRecommendation: Math.round(kellyFraction * 10000) / 100,
-          modelReasons: model.reasons,
-          commenceTime: event.commence_time,
-          ...timing
-        });
+    for (const event of selectedEvents) {
+      const fairByOutcome = consensusFairProbabilities(event);
+      
+      const targetBookmaker = event.bookmakers?.find(b => 
+        b.key === 'fanduel' || b.key === 'draftkings' || b.key === 'betmgm'
+      );
+      if (!targetBookmaker) continue;
+
+      for (const market of targetBookmaker.markets || []) {
+        if (!gameMarkets.includes(market.key)) continue;
+        for (const outcome of market.outcomes || []) {
+          if (typeof outcome.price !== 'number') continue;
+          const id = legId(event.id, market.key, outcome);
+          const impliedProbability = impliedFromAmerican(outcome.price);
+          const consensusFairProbability = fairByOutcome.get(id);
+          if (consensusFairProbability === undefined) continue;
+          const fairProbability = adjustedFairProbability(market.key, consensusFairProbability, impliedProbability);
+          const edge = fairProbability - impliedProbability;
+          if (edge < minEdge) continue;
+          const timing = eventTiming(event.commence_time);
+          const model = modelForMarket(market.key);
+          const kellyFraction = quarterKellyFraction(fairProbability, outcome.price);
+          const clv = clvConfidence(edge, market.key, timing.minutesUntilStart);
+          allLegs.push({
+            id,
+            event: `${event.away_team} @ ${event.home_team}`,
+            market: market.key,
+            selection: selectionLabel(market.key, outcome),
+            point: outcome.point,
+            price: outcome.price,
+            impliedProbability,
+            fairProbability,
+            edge,
+            source: 'live-consensus-plus-oddsify-model',
+            bookmakerKey: targetBookmaker.key,
+            modelVersion: ODDSIFY_MODEL_VERSION,
+            modelCategory: model.category,
+            marketSoftness: model.softness,
+            evCeiling: model.evCeiling,
+            clvConfidence: clv,
+            kellyFraction,
+            unitRecommendation: Math.round(kellyFraction * 10000) / 100,
+            modelReasons: model.reasons,
+            commenceTime: event.commence_time,
+            ...timing
+          });
+        }
       }
     }
   }
 
-  return { legs: allLegs, eventsFound: events.length, eventsScanned: selectedEvents.length, eventsEligible: eligibleEvents.length, eventsFilteredOut: events.length - eligibleEvents.length, marketsRequested };
+  // Fetch player props for a limited number of events (to avoid rate limits)
+  if (playerPropMarkets.length > 0 && eventsFound > 0) {
+    const eventsUrl = `${base}/sports/baseball_mlb/events?apiKey=${key}`;
+    const allEvents = await fetchJson<OddsEvent[]>(eventsUrl);
+    const eligibleEvents = upcomingOnly
+      ? allEvents.filter(event => event.commence_time && new Date(event.commence_time).getTime() > cutoff)
+      : allEvents;
+    const propEvents = eligibleEvents.slice(0, maxPropEvents);
+
+    for (const event of propEvents) {
+      const url = `${base}/sports/baseball_mlb/events/${event.id}/odds?apiKey=${key}&regions=us&markets=${playerPropMarkets.join(',')}&oddsFormat=american`;
+      const data = await fetchJson<OddsEvent>(url);
+      const fairByOutcome = consensusFairProbabilities(data);
+      
+      const targetBookmaker = data.bookmakers?.find(b => 
+        b.key === 'fanduel' || b.key === 'draftkings' || b.key === 'betmgm'
+      );
+      if (!targetBookmaker) continue;
+
+      for (const market of targetBookmaker.markets || []) {
+        for (const outcome of market.outcomes || []) {
+          if (typeof outcome.price !== 'number') continue;
+          const id = legId(event.id, market.key, outcome);
+          const impliedProbability = impliedFromAmerican(outcome.price);
+          const consensusFairProbability = fairByOutcome.get(id);
+          if (consensusFairProbability === undefined) continue;
+          const fairProbability = adjustedFairProbability(market.key, consensusFairProbability, impliedProbability);
+          const edge = fairProbability - impliedProbability;
+          if (edge < minEdge) continue;
+          const timing = eventTiming(event.commence_time);
+          const model = modelForMarket(market.key);
+          const kellyFraction = quarterKellyFraction(fairProbability, outcome.price);
+          const clv = clvConfidence(edge, market.key, timing.minutesUntilStart);
+          allLegs.push({
+            id,
+            event: `${event.away_team} @ ${event.home_team}`,
+            market: market.key,
+            selection: selectionLabel(market.key, outcome),
+            point: outcome.point,
+            price: outcome.price,
+            impliedProbability,
+            fairProbability,
+            edge,
+            source: 'live-consensus-plus-oddsify-model',
+            bookmakerKey: targetBookmaker.key,
+            modelVersion: ODDSIFY_MODEL_VERSION,
+            modelCategory: model.category,
+            marketSoftness: model.softness,
+            evCeiling: model.evCeiling,
+            clvConfidence: clv,
+            kellyFraction,
+            unitRecommendation: Math.round(kellyFraction * 10000) / 100,
+            modelReasons: model.reasons,
+            commenceTime: event.commence_time,
+            ...timing
+          });
+        }
+      }
+    }
+  }
+
+  return { legs: allLegs, eventsFound, eventsScanned, eventsEligible, eventsFilteredOut, marketsRequested };
 }
 
 export async function GET(request: Request) {

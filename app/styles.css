@@ -2,29 +2,29 @@
 /* Turtle Doctrine Edition — 2026 */
 
 :root {
-  /* Colors */
-  --bg-primary: #0a0e1a;
-  --bg-secondary: #111827;
-  --bg-tertiary: #1f2937;
-  --bg-card: #1a2035;
-  --border-color: #2d3748;
-  --border-light: #374151;
+  /* Colors - Grey/Black/Green Theme */
+  --bg-primary: #000000;
+  --bg-secondary: #0a0a0a;
+  --bg-tertiary: #1a1a1a;
+  --bg-card: #111111;
+  --border-color: #2a2a2a;
+  --border-light: #333333;
   
   /* Text */
-  --text-primary: #f9fafb;
-  --text-secondary: #9ca3af;
-  --text-muted: #6b7280;
+  --text-primary: #ffffff;
+  --text-secondary: #a3a3a3;
+  --text-muted: #666666;
   
-  /* Accents */
-  --accent-primary: #10b981;
-  --accent-secondary: #3b82f6;
-  --accent-gradient: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+  /* Accents - Green Only */
+  --accent-primary: #00ff88;
+  --accent-secondary: #00cc6a;
+  --accent-gradient: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
   
   /* Status */
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-  --info: #3b82f6;
+  --success: #00ff88;
+  --warning: #ffaa00;
+  --danger: #ff4444;
+  --info: #666666;
   
   /* Spacing */
   --header-height: 64px;
@@ -539,12 +539,12 @@ body {
   letter-spacing: 0.05em;
 }
 
-.signal-badge.steam { background: #44ff88; color: #0b1020; }
-.signal-badge.rlm { background: #aa44ff; color: white; }
-.signal-badge.keynumber { background: #4488ff; color: white; }
-.signal-badge.latesharp { background: #ffaa44; color: #0b1020; }
-.signal-badge.linefreeze { background: #ff4444; color: white; }
-.signal-badge.syncjuicing { background: #ff66aa; color: white; }
+.signal-badge.steam { background: #00ff88; color: #000000; }
+.signal-badge.rlm { background: #666666; color: #ffffff; }
+.signal-badge.keynumber { background: #444444; color: #ffffff; }
+.signal-badge.latesharp { background: #ffaa00; color: #000000; }
+.signal-badge.linefreeze { background: #ff4444; color: #ffffff; }
+.signal-badge.syncjuicing { background: #444444; color: #ffffff; }
 
 /* Score Breakdown */
 .score-breakdown {

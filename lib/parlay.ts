@@ -36,6 +36,7 @@ export type Leg = {
   fairProbability: number;
   edge: number;
   source?: string;
+  bookmakerKey?: string;      // Actual sportsbook: 'fanduel', 'draftkings', 'betmgm'
   modelVersion?: string;
   modelCategory?: string;
   marketSoftness?: 'Very High' | 'High' | 'Medium' | 'Low';

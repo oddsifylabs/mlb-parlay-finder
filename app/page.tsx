@@ -15,7 +15,7 @@ interface Signal {
   sampleSize: number;
 }
 
-type Leg = { id:string; event:string; market:string; selection:string; price:number; impliedProbability:number; fairProbability:number; edge:number; source?:string; modelVersion?:string; modelCategory?:string; marketSoftness?:string; evCeiling?:string; clvConfidence?:'High'|'Medium'|'Low'; kellyFraction?:number; unitRecommendation?:number; modelReasons?:string[]; commenceTime?:string; startStatus?:'green'|'yellow'|'red'|'started'|'unknown'; minutesUntilStart?:number; signals?:Signal[]; signalScore?:number; ticketMoneySplit?:{ticketPercentage:number;moneyPercentage:number;isSplitAction:boolean}; clvData?:{openingLine?:number;currentLine?:number;closingLine?:number;clv?:number}; weather?:{temperature:number;windSpeed:number;windDirection:'in'|'out'|'left'|'right'|'none';precipitation:number;condition:'clear'|'cloudy'|'rain'|'snow'|'storm'}; lineupStatus?:'confirmed'|'projected'|'unknown'; previousEdge?:number; };
+type Leg = { id:string; event:string; market:string; selection:string; price:number; impliedProbability:number; fairProbability:number; edge:number; source?:string; bookmakerKey?:string; modelVersion?:string; modelCategory?:string; marketSoftness?:string; evCeiling?:string; clvConfidence?:'High'|'Medium'|'Low'; kellyFraction?:number; unitRecommendation?:number; modelReasons?:string[]; commenceTime?:string; startStatus?:'green'|'yellow'|'red'|'started'|'unknown'; minutesUntilStart?:number; signals?:Signal[]; signalScore?:number; ticketMoneySplit?:{ticketPercentage:number;moneyPercentage:number;isSplitAction:boolean}; clvData?:{openingLine?:number;currentLine?:number;closingLine?:number;clv?:number}; weather?:{temperature:number;windSpeed:number;windDirection:'in'|'out'|'left'|'right'|'none';precipitation:number;condition:'clear'|'cloudy'|'rain'|'snow'|'storm'}; lineupStatus?:'confirmed'|'projected'|'unknown'; previousEdge?:number; };
 type Parlay = { legs: Leg[]; americanOdds:number; estimatedProbability:number; expectedValue:number; score:number; mode?:Mode; riskLabel?:'Low'|'Medium'|'High' };
 type ApiResponse = { generatedAt:string; usingMockData:boolean; status?:string; modelVersion?:string; mode?:Mode; eventsFound?:number; eventsScanned?:number; eventsEligible?:number; eventsFilteredOut?:number; upcomingOnly?:boolean; legsFound?:number; marketsRequested?:string[]; threeLegs:Parlay[]; fourLegs:Parlay[]; fiveLegs:Parlay[]; error?:string };
 type SavedParlay = Parlay & { id: string; savedAt: string; note?: string; openingLine?:number; closingLine?:number; clv?:number; result?:'win'|'loss'|'push'; signalTypes?:string[]; };
@@ -176,7 +176,7 @@ function ParlayCard({ parlay, rank, onSave, saved }: { parlay: Parlay; rank?: nu
     <ul>{parlay.legs.map(leg => <li key={leg.id}>
       <b>{leg.selection}</b><br/>
       <small>
-        {leg.event} · {leg.market} · DK {odds(leg.price)} · edge {pct(leg.edge)} · true {pct(leg.fairProbability)} vs implied {pct(leg.impliedProbability)}
+        {leg.event} · {leg.market} · {leg.bookmakerKey === 'fanduel' ? 'FD' : leg.bookmakerKey === 'betmgm' ? 'MGM' : 'DK'} {odds(leg.price)} · edge {pct(leg.edge)} · true {pct(leg.fairProbability)} vs implied {pct(leg.impliedProbability)}
         {leg.ticketMoneySplit?.isSplitAction && (
           <><br/>📊 Split Action: {Math.round(leg.ticketMoneySplit.ticketPercentage)}% tickets / {Math.round(leg.ticketMoneySplit.moneyPercentage)}% money</>
         )}

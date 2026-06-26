@@ -307,6 +307,7 @@ async function fetchHardRockBetLegs(includeAlternates: boolean, upcomingOnly: bo
           fairProbability,
           edge,
           source: 'live-consensus-plus-oddsify-model',
+          bookmakerKey: targetBookmaker.key,
           modelVersion: ODDSIFY_MODEL_VERSION,
           modelCategory: model.category,
           marketSoftness: model.softness,

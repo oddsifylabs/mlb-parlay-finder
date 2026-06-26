@@ -533,8 +533,10 @@ export default function Home() {
   const [bankrollSummary, setBankrollSummary] = useState<BankrollSummary | null>(null);
   const [bankrollState, setBankrollState] = useState<any>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
+  function scanMarkets() {
+    setIsLoading(true);
     setData(null);
     const apiMarkets = includeAlternates
       ? Array.from(new Set([...selectedMarkets, ...selectedMarkets.map(m => `${m}_alternate`)]))
@@ -545,13 +547,17 @@ export default function Home() {
       mode,
       markets: apiMarkets.join(',')
     });
-    fetch(`/api/parlays?${params.toString()}`).then(r => r.json()).then(setData);
-  }, [upcomingOnly, includeAlternates, mode, selectedMarkets]);
-  
+    fetch(`/api/parlays?${params.toString()}`)
+      .then(r => r.json())
+      .then(setData)
+      .finally(() => setIsLoading(false));
+  }
+
   useEffect(() => { 
     loadHistory();
     loadCLVData();
     loadBankrollData();
+    scanMarkets();
   }, []);
 
   async function loadHistory() {
@@ -725,20 +731,49 @@ export default function Home() {
       <main className="main-content">
         {/* Hero */}
         <div className="hero">
-          <h1 className="hero-title">
-            {tab === 'threeLegs' && '3-Leg Parlays'}
-            {tab === 'fourLegs' && '4-Leg Parlays'}
-            {tab === 'fiveLegs' && '5-Leg Parlays'}
-            {tab === 'history' && 'VIC Portfolio'}
-            {tab === 'clv' && 'CLV Tracker'}
-            {tab === 'bankroll' && 'Bankroll Management'}
-          </h1>
-          <p className="hero-subtitle">
-            {tab === 'history' && 'Your saved +EV parlays with CLV tracking'}
-            {tab === 'clv' && 'Track your closing line value performance'}
-            {tab === 'bankroll' && 'Turtle Doctrine position-sizing system'}
-            {tab !== 'history' && tab !== 'clv' && tab !== 'bankroll' && 'Value • Information • Closing Line Edge'}
-          </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div>
+              <h1 className="hero-title">
+                {tab === 'threeLegs' && '3-Leg Parlays'}
+                {tab === 'fourLegs' && '4-Leg Parlays'}
+                {tab === 'fiveLegs' && '5-Leg Parlays'}
+                {tab === 'history' && 'VIC Portfolio'}
+                {tab === 'clv' && 'CLV Tracker'}
+                {tab === 'bankroll' && 'Bankroll Management'}
+              </h1>
+              <p className="hero-subtitle">
+                {tab === 'history' && 'Your saved +EV parlays with CLV tracking'}
+                {tab === 'clv' && 'Track your closing line value performance'}
+                {tab === 'bankroll' && 'Turtle Doctrine position-sizing system'}
+                {tab !== 'history' && tab !== 'clv' && tab !== 'bankroll' && 'Value • Information • Closing Line Edge'}
+              </p>
+            </div>
+            {tab !== 'history' && tab !== 'clv' && tab !== 'bankroll' && (
+              <button 
+                className="btn btn-primary" 
+                onClick={scanMarkets}
+                disabled={isLoading}
+                style={{ 
+                  padding: '12px 24px', 
+                  fontSize: 14,
+                  fontWeight: 700,
+                  minWidth: 160
+                }}
+              >
+                {isLoading ? (
+                  <>
+                    <Activity size={18} style={{ marginRight: 8, animation: 'spin 1s linear infinite' }} />
+                    Scanning...
+                  </>
+                ) : (
+                  <>
+                    <Search size={18} style={{ marginRight: 8 }} />
+                    Scan Markets
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* CLV Dashboard */}

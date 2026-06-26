@@ -272,10 +272,10 @@ async function fetchHardRockBetLegs(includeAlternates: boolean, upcomingOnly: bo
     const data = await fetchJson<OddsEvent>(url);
     const fairByOutcome = consensusFairProbabilities(data);
     
-    // Primary bookmakers available in The Odds API for MLB
-    // Priority: DraftKings (always available), then FanDuel, then BetMGM
+    // FanDuel — primary bookmaker for MLB odds
+    // Fallback to DraftKings or BetMGM if FanDuel unavailable for a specific market
     const targetBookmaker = data.bookmakers?.find(b => 
-      b.key === 'draftkings' || b.key === 'fanduel' || b.key === 'betmgm'
+      b.key === 'fanduel' || b.key === 'draftkings' || b.key === 'betmgm'
     );
     if (!targetBookmaker) {
       console.log(`No odds for event ${event.id}. Available:`, data.bookmakers?.map(b => b.key).join(', ') || 'none');
@@ -338,7 +338,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       generatedAt: new Date().toISOString(),
       usingMockData: !process.env.ODDS_API_KEY,
-      status: process.env.ODDS_API_KEY ? 'Live odds loaded (DraftKings/FanDuel/BetMGM) with Oddsify Props Deep Dive model' : 'Using mock data because ODDS_API_KEY is missing',
+      status: process.env.ODDS_API_KEY ? 'Live FanDuel odds loaded with Oddsify Props Deep Dive model' : 'Using mock data because ODDS_API_KEY is missing',
       modelVersion: ODDSIFY_MODEL_VERSION,
       eventsFound: result.eventsFound,
       eventsScanned: result.eventsScanned,

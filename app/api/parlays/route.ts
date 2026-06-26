@@ -255,7 +255,7 @@ async function fetchHardRockBetLegs(includeAlternates: boolean, upcomingOnly: bo
   const defaultMarkets = includeAlternates ? [...CORE_MARKETS, ...ALTERNATE_MARKETS] : CORE_MARKETS;
   const marketsRequested = requestedFromUi.length ? requestedFromUi : defaultMarkets;
   const maxEvents = Number(process.env.MAX_MLB_EVENTS || '30');
-  const minEdge = Number(process.env.MIN_EDGE || '0.005');
+  const minEdge = Number(process.env.MIN_EDGE || '0.00'); // Lowered from 0.005 to show more props
 
   const eventsUrl = `${base}/sports/baseball_mlb/events?apiKey=${key}`;
   const events = await fetchJson<OddsEvent[]>(eventsUrl);
@@ -272,13 +272,13 @@ async function fetchHardRockBetLegs(includeAlternates: boolean, upcomingOnly: bo
     const data = await fetchJson<OddsEvent>(url);
     const fairByOutcome = consensusFairProbabilities(data);
     
-    // Hard Rock Bet — multiple state licenses available via The Odds API
-    // Keys: hardrockbet (general), hardrockbet_az (AZ), hardrockbet_fl (FL), hardrockbet_oh (OH)
-    // See: https://the-odds-api.com/sports-odds-data/bookmaker-apis.html#us-bookmakers
-    const hardRockBetKeys = ['hardrockbet', 'hardrockbet_az', 'hardrockbet_fl', 'hardrockbet_oh', 'hardrockbet_in', 'hardrockbet_ia', 'hardrockbet_ky', 'hardrockbet_md', 'hardrockbet_ma', 'hardrockbet_nj', 'hardrockbet_pa', 'hardrockbet_va', 'hardrockbet_wv'];
-    const targetBookmaker = data.bookmakers?.find(b => hardRockBetKeys.includes(b.key));
+    // Primary bookmakers available in The Odds API for MLB
+    // Priority: DraftKings (always available), then FanDuel, then BetMGM
+    const targetBookmaker = data.bookmakers?.find(b => 
+      b.key === 'draftkings' || b.key === 'fanduel' || b.key === 'betmgm'
+    );
     if (!targetBookmaker) {
-      console.log(`No Hard Rock Bet odds for event ${event.id}. Available:`, data.bookmakers?.map(b => b.key).join(', ') || 'none');
+      console.log(`No odds for event ${event.id}. Available:`, data.bookmakers?.map(b => b.key).join(', ') || 'none');
       continue;
     }
 
@@ -338,7 +338,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       generatedAt: new Date().toISOString(),
       usingMockData: !process.env.ODDS_API_KEY,
-      status: process.env.ODDS_API_KEY ? 'Live Hard Rock Bet odds loaded with Oddsify Props Deep Dive model' : 'Using mock data because ODDS_API_KEY is missing',
+      status: process.env.ODDS_API_KEY ? 'Live odds loaded (DraftKings/FanDuel/BetMGM) with Oddsify Props Deep Dive model' : 'Using mock data because ODDS_API_KEY is missing',
       modelVersion: ODDSIFY_MODEL_VERSION,
       eventsFound: result.eventsFound,
       eventsScanned: result.eventsScanned,

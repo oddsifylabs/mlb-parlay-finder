@@ -99,11 +99,9 @@ function modelForMarket(marketKey: string) {
 }
 
 function adjustedFairProbability(marketKey: string, consensusFair: number, impliedProbability: number): number {
-  const model = modelForMarket(marketKey);
-  const rawEdge = consensusFair - impliedProbability;
-  if (rawEdge <= 0) return consensusFair;
-  const adjustedEdge = rawEdge * model.weight;
-  return Math.max(0.01, Math.min(0.97, impliedProbability + adjustedEdge));
+  // Return consensus fair probability directly — no artificial adjustment
+  // Market weights are used in VIC Score calculation, not in edge calculation
+  return consensusFair;
 }
 
 function clvConfidence(edge: number, marketKey: string, minutesUntilStart?: number): 'High' | 'Medium' | 'Low' {

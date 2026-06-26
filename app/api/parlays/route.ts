@@ -271,12 +271,13 @@ async function fetchHardRockBetLegs(includeAlternates: boolean, upcomingOnly: bo
     const url = `${base}/sports/baseball_mlb/events/${event.id}/odds?apiKey=${key}&regions=us&markets=${marketsRequested.join(',')}&oddsFormat=american`;
     const data = await fetchJson<OddsEvent>(url);
     const fairByOutcome = consensusFairProbabilities(data);
-    // Hard Rock Bet — multiple state licenses available via The Odds API
-    // us2 region: hardrockbet (IN), hardrockbet_az (AZ), hardrockbet_fl (FL), hardrockbet_oh (OH)
-    // See: https://the-odds-api.com/sports-odds-data/bookmaker-apis.html#us-bookmakers
-    const hardRockBetKeys = ['hardrockbet', 'hardrockbet_az', 'hardrockbet_fl', 'hardrockbet_oh'];
-    const targetBookmaker = data.bookmakers?.find(b => hardRockBetKeys.includes(b.key));
-    if (!targetBookmaker) continue;
+    
+    // FanDuel — primary US bookmaker, always available in The Odds API
+    const targetBookmaker = data.bookmakers?.find(b => b.key === 'fanduel');
+    if (!targetBookmaker) {
+      console.log(`No FanDuel odds for event ${event.id}. Available:`, data.bookmakers?.map(b => b.key).join(', ') || 'none');
+      continue;
+    }
 
     for (const market of targetBookmaker.markets || []) {
       for (const outcome of market.outcomes || []) {

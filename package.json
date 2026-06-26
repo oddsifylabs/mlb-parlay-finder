@@ -11,6 +11,7 @@
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "better-sqlite3": "latest",
+    "lucide-react": "^1.21.0",
     "next": "latest",
     "pdfkit": "^0.19.1",
     "react": "latest",

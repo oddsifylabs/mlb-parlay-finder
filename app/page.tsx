@@ -77,7 +77,7 @@ const MARKET_GROUPS = {
   ]
 } as const;
 
-const DEFAULT_MARKETS = ['pitcher_strikeouts','pitcher_outs','pitcher_walks','batter_hits','batter_total_bases','batter_hits_runs_rbis','batter_home_runs','h2h','totals'];
+const DEFAULT_MARKETS = ['pitcher_strikeouts','pitcher_outs','pitcher_walks','batter_hits','batter_total_bases','batter_hits_runs_rbis','batter_home_runs','batter_strikeouts','batter_stolen_bases','h2h','totals'];
 
 function pct(n:number){ return `${(n*100).toFixed(1)}%`; }
 function odds(n:number){ return n > 0 ? `+${n}` : `${n}`; }
